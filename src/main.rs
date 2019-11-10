@@ -10,6 +10,8 @@ mod model;
 mod pagination;
 #[allow(unused_imports)]
 mod schema;
+#[macro_use]
+mod diesel_ext;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "rustfest")]
