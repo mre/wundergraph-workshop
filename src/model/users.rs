@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
+use wundergraph::WundergraphEntity;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -26,8 +27,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/users/{id}/comments").route(web::get().to(get_comments_for_user)));
 }
 
-#[derive(Serialize, Deserialize, Queryable, Debug)]
-struct User {
+#[derive(Serialize, Deserialize, Queryable, Debug, Identifiable, WundergraphEntity)]
+#[primary_key(id)]
+#[table_name = "users"]
+pub struct User {
     id: i32,
     name: String,
     joined_at: DateTime<Utc>,

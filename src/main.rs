@@ -1,15 +1,25 @@
 #[macro_use]
 extern crate diesel;
 
-use actix_web::{middleware, App, HttpServer};
+extern crate juniper;
+
+use actix_web::web::{Data, Json};
+use actix_web::{middleware, web, App, HttpResponse, HttpServer};
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
+use juniper::http::GraphQLRequest;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use structopt::StructOpt;
+use wundergraph::scalar::WundergraphScalarValue;
 
+mod graphql_schema;
 mod model;
 mod pagination;
 #[allow(unused_imports)]
 mod schema;
+
+use crate::graphql_schema::{create_schema, Schema};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "rustfest")]
@@ -23,6 +33,41 @@ struct Opt {
 #[derive(Clone)]
 struct AppState {
     pool: Pool<ConnectionManager<PgConnection>>,
+    schema: Arc<Schema>,
+}
+
+// #[derive(Debug)]
+// pub struct MyContext<Conn>
+// where
+//     Conn: Connection + 'static,
+// {
+//     conn: PooledConnection<ConnectionManager<Conn>>,
+// }
+
+// impl<Conn> MyContext<Conn>
+// where
+//     Conn: Connection + 'static,
+// {
+//     pub fn new(conn: PooledConnection<ConnectionManager<Conn>>) -> Self {
+//         Self { conn }
+//     }
+// }
+
+
+// actix integration stuff
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GraphQLData(GraphQLRequest<WundergraphScalarValue>);
+
+fn graphql(
+    Json(GraphQLData(data)): Json<GraphQLData>,
+    st: Data<AppState>,
+) -> Result<HttpResponse, failure::Error> {
+    let ctx = st.get_ref().pool.get()?;
+
+    let res = data.execute(&*st.get_ref().schema, &ctx);
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(serde_json::to_string(&res)?))
 }
 
 fn main() {
@@ -35,7 +80,9 @@ fn main() {
     diesel_migrations::run_pending_migrations(&pool.get().expect("Failed to get db connection"))
         .expect("Failed to run migrations");
 
-    let data = AppState { pool };
+    // Create Juniper schema
+    let schema = std::sync::Arc::new(create_schema());
+    let data = AppState { pool, schema };
 
     let url = opt.socket;
 
@@ -47,6 +94,8 @@ fn main() {
             .configure(model::users::config)
             .configure(model::comments::config)
             .data(data.clone())
+            .route("/graphql", web::get().to(graphql))
+            .route("/graphql", web::post().to(graphql))
             .wrap(middleware::Logger::default())
     })
     .bind(&url)

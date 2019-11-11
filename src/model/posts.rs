@@ -9,8 +9,10 @@ use diesel::pg::Pg;
 use diesel::prelude::*;
 use diesel::serialize::{self, ToSql};
 use failure::Error;
+use juniper::GraphQLEnum;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
+use wundergraph::{query_builder::types::WundergraphValue, WundergraphEntity};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -31,7 +33,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/posts/page/{page_number}").route(web::get().to(paginated_posts)));
 }
 
-#[derive(Serialize, Deserialize, Queryable, Debug)]
+#[derive(Serialize, Deserialize, Queryable, Debug, Identifiable, WundergraphEntity)]
+#[table_name = "posts"]
+#[primary_key(title, content, author)]
 pub struct Post {
     id: i32,
     title: String,
@@ -62,7 +66,9 @@ struct NewPost {
 #[postgres(type_name = "post_state")]
 pub struct Post_state;
 
-#[derive(Debug, FromSqlRow, AsExpression, Deserialize, Serialize)]
+#[derive(
+    Debug, FromSqlRow, AsExpression, Deserialize, Serialize, GraphQLEnum, Clone, WundergraphValue,
+)]
 #[sql_type = "Post_state"]
 pub enum PostState {
     Draft,

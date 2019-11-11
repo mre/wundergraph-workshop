@@ -16,3 +16,5 @@ structopt = "0.3"
 env_logger = "0.7"
 chrono = {version = "0.4", features = ["serde"]}
 failure = "0.1"
+juniper = "0.14.1"
+wundergraph = { version = "0.1.0", features = ["postgres", "chrono"]}
